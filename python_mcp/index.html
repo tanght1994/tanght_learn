@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SSE Client Demo</title>
+</head>
+<body>
+    <button onclick="connect()">连接</button>
+    <button onclick="sendRequest('ping')">Ping</button>
+    <button onclick="sendRequest('resources/list')">ListResources</button>
+    <button onclick="sendRequest('tools/list')">ListTools</button>
+    
+    <br><br>
+    <textarea id="result" rows="15" cols="80" readonly></textarea>
+
+    <script>
+        let eventSource = null;
+        let messageEndpoint = null;
+
+        function connect() {
+            // Close existing connection if any
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            // Initialize SSE connection
+            eventSource = new EventSource('/sse');
+            
+            eventSource.onmessage = function(event) {
+                try {
+                    // Try to parse JSON data for initial endpoint information
+                    const data = JSON.parse(event.data);
+                    if (data.event === 'endpoint') {
+                        messageEndpoint = data.data;
+                        appendResult('[系统] 连接成功，消息端点: ' + data.data);
+                    }
+                } catch (e) {
+                    // Directly display non-JSON responses from server
+                    appendResult('[响应] ' + event.data);
+                }
+            };
+
+            eventSource.onerror = function() {
+                appendResult('[错误] SSE连接异常');
+            };
+        }
+
+        function sendRequest(method) {
+            if (!messageEndpoint) {
+                appendResult('[错误] 请先点击连接按钮建立连接');
+                return;
+            }
+
+            const requestId = crypto.randomUUID();
+            const requestData = {
+                requestid: requestId,
+                method: method,
+                params: null
+            };
+
+            // Send request to server
+            fetch(messageEndpoint, {
+                method: 'POST',
+                body: JSON.stringify(requestData),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP错误 ${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+                appendResult(`[请求] 已发送 ${method} 请求 (ID: ${requestId})`);
+            })
+            .catch(error => {
+                appendResult(`[错误] 请求发送失败: ${error}`);
+            });
+        }
+
+        function appendResult(text) {
+            const textarea = document.getElementById('result');
+            textarea.value += `${new Date().toLocaleTimeString()} - ${text}\n`;
+            textarea.scrollTop = textarea.scrollHeight;
+        }
+    </script>
+</body>
+</html>
+
+<!-- <!DOCTYPE html>
+<html>
+<head>
+    <title>SSE Demo</title>
+</head>
+<body>
+    <h1>Server-Sent Events 演示</h1>
+    <div id="events" style="border: 1px solid #ccc; padding: 20px; margin: 20px;"></div>
+
+    <script>
+        const eventSource = new EventSource('/sse');
+        const eventsDiv = document.getElementById('events');
+
+        eventSource.onmessage = function(e) {
+            const newElement = document.createElement("div");
+            newElement.textContent = "收到事件: " + e.data;
+            eventsDiv.appendChild(newElement);
+            eventsDiv.scrollTop = eventsDiv.scrollHeight;  // 自动滚动到底部
+        };
+
+        eventSource.onerror = function(e) {
+            console.error("EventSource 错误:", e);
+            eventSource.close();
+        };
+    </script>
+</body>
+</html> -->
